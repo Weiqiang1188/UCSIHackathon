@@ -416,3 +416,272 @@ real `md5sum` output.)
 - `exploit.py` — Teacash exploit.
 - `hash-only/` — hash-only-1 challenge artifacts (script for SSH recon + exploit).
 - `BinaryExplotitionCTF.MD` — this writeup (now covers both Teacash and hash-only-1).
+
+---
+
+# Post-Mortem — Pizza Router (picoCTF) — Unsolved
+
+**Category:** Binary Exploitation (Heap + Function-pointer overwrite)
+**Title:** Pizza Router
+**Target:** `nc mysterious-sea.picoctf.net 59623`
+**Result:** ❌ Unsolved (timed out during exploit development)
+**Status:** Report only — no flag captured.
+
+This section is a **lessons-learned writeup**, not a victory writeup.
+It documents the full reverse-engineering work, the exploit path I was
+chasing, and exactly where it broke.
+
+---
+
+## 1. What the binary does (reverse-engineered from disassembly)
+
+It's a pizza-drone router with commands:
+
+```
+load <map>          # load city1.map / city2.map / city3.map
+maps
+add_order <x> <y>   # plan a delivery to (x,y) on the loaded map
+coupon <id> <amt>   # add a coupon to an order (can underflow total)
+reroute <id> <heap_idx> <new_cost>  # write primitive on the heap
+dispatch <id>       # run the delivery animation
+replay <id>         # leak path + renderer pointer
+receipt <id>        # leak hops, coupon, total, hint pointer
+help, quit
+```
+
+There's an unused function `win` at `0x2460` that opens and prints
+`flag.txt`. The string `*** 30 minutes or FLAG free! ***` is right next
+to it. `win` is **never called from anywhere** — confirmed by
+`grep "call.*2460"` returning nothing.
+
+So the entire challenge is: **get RIP to point at `win`**.
+
+---
+
+## 2. Memory layout I reverse-engineered
+
+| Region | Size | Notes |
+|--------|------|-------|
+| `ORD[i]` (BSS, `0x5080 + i*0x1038`) | 0x1038 each | 31 slots. Holds id, x, y, coupon, active, **hops @ 0x1018**, **renderer @ 0x1020**, **path_data @ 0x1028**, **hint @ 0x1030**. |
+| `path_data` (heap, 0x440 bytes) | 0x440 | One per order. Allocated by `calloc(0x440, 1)`. |
+| └ path_data[0x00] | int = 0x80 | constant |
+| └ path_data[0x08] | ptr → entries (== `&path_data[0x18]`) | self-referential |
+| └ path_data[0x10] | ptr → fx      (== `&path_data[0x420]`) | self-referential |
+| └ path_data[0x18 .. 0x41F] | **entries[]** (Dijkstra cost map) | what `reroute` writes to |
+| └ path_data[0x420 .. 0x42F] | "noen" string | padding |
+| └ path_data[0x430] | fn ptr → `fx_finish_dummy` (PIE+0x2270) | called by `dispatch` as `fx[0x10]` |
+| └ path_data[0x438] | fn ptr → `fx_draw_basic`   (PIE+0x2260) | called by `dispatch` as `fx[0x18]` |
+
+**Dispatch handler** (`main+0xb74`):
+```
+1. print "dispatching…"
+2. if order[0x1028] == NULL: return
+3. hops = order[0x1018]
+4. if hops <= 1: call fx[0x10] and return
+5. else: loop hops-1 times, calling fx[0x18] each time
+6. finally: call fx[0x10]
+```
+
+So **the only way to call `win` is to overwrite one of the two function
+pointers at `path_data[0x430]` or `path_data[0x438]`**.
+
+---
+
+## 3. The write primitive (`reroute`)
+
+`reroute <id> <heap_idx> <new_cost>` does (paraphrased):
+```c
+int* entries = path_data[0x08];          // == &path_data[0x18]
+int flat_idx = order.x + order.y * G;    // G = 16 for all maps
+int* target  = &entries[heap_idx];       // 8-byte stride
+target[0] = flat_idx;                    // lower 4 bytes (CONTROLLED by x,y)
+target[1] = new_cost;                    // upper 4 bytes (CONTROLLED by cmd)
+```
+
+So each `reroute` writes **8 bytes** to `path_data + 0x18 + heap_idx*8`:
+- Lower 4 bytes: `x + y*G` — **not arbitrary**: `add_order` does
+  `cmpb $0x23, map[y*G + x]` (i.e. `'#'` check) and accepts anything
+  that's not `'#'` or `'S'`. The byte at `map_base + y*G + x` must
+  be in mapped memory or the read segfaults.
+- Upper 4 bytes: `new_cost` — **fully controlled**, signed 32-bit.
+
+---
+
+## 4. The leaks (`replay` and `receipt`)
+
+```
+receipt 0 -> receipt: hops=14 coupon=0 total=14 hint=0x605595610b20
+replay 0  -> replay: 14 points; renderer=0x6132b9fba260
+```
+
+- `renderer` is `order[0x1020]` = `&fx_draw_basic` = `PIE + 0x2260` → **PIE leak**.
+- `hint` is `order[0x1030]` = `path_data` → **heap leak**.
+
+From these:
+```
+PIE base  = renderer - 0x2260
+win addr  = PIE base + 0x2460   = renderer + 0x200
+```
+
+---
+
+## 5. The exploit path I was chasing (and why it failed)
+
+**Goal:** make `fx[0x10]` and `fx[0x18]` both equal `win` so dispatch
+calls `win` twice.
+
+**Plan A — direct overwrite of `fx[0x10]` / `fx[0x18]`:**
+
+| fx slot | path_data offset | heap_idx |
+|---------|------------------|----------|
+| fx[0x10] | +0x430 | (0x430-0x18)/8 = **131** |
+| fx[0x18] | +0x438 | (0x438-0x18)/8 = **132** |
+
+`reroute id 131 <new_cost>` would write:
+- `entries[131].flat_idx` = `x + y*G`  → lower 4 B of fx[0x10]
+- `entries[131].cost`     = `<new_cost>` → upper 4 B of fx[0x10]
+
+So we need `x + y*G` = **lower 4 bytes of `win`**. With ASLR, the
+lower 4 B of `win` are uniformly random in `[0x2460, 0xFFFFF460]`. The
+`map` read at `map_base + y*G + x` would need to reach that offset.
+The BSS + initial heap is only `~172 KB`, so for ~99.9999% of ASLR
+draws the read segfaults before the offset is even valid.
+
+I wrote a "try until ASLR is friendly" brute forcer — but the
+probability is `~0.00004%` per attempt (~19 days at 1 attempt/sec).
+Clearly not the intended path.
+
+**Plan B — the "misalignment" trick:**
+
+Set `fx = path_data + 0x0C` (not `path_data + 0x420`).
+Then:
+```
+fx[0x10] = *(path_data + 0x1C) = entries[0].cost (4B) | entries[1].flat_idx (4B)
+fx[0x18] = *(path_data + 0x24) = entries[1].cost (4B) | entries[2].flat_idx (4B)
+```
+
+If we want both to equal `win = [win_low | win_high]`:
+- `entries[0].cost` = `win_low`  ✅ (controlled)
+- `entries[1].flat_idx` = `win_high` ❌ (constrained = `x + y*G`)
+
+Now `win_high` is the **upper 4 bytes** of a PIE address — typically
+`0x55..0x7f`, i.e. **small**. With `G=16`, `x + y*16 = 85` is satisfied
+by `(x,y) = (5,5)` — a valid open cell. ✅
+
+But this is only the **entries** side. We still need to overwrite
+`path_data[0x10]` (the fx pointer) to `path_data + 0x0C`. That write
+also uses `reroute`, and it needs `x + y*G` = lower 4 B of
+`(path_data + 0x0C)` — a **large** heap address, same ASLR problem.
+
+**Plan C — overwrite `path_data[0x08]` (entries pointer) instead:**
+
+Use `reroute` with `heap_idx = -2` to write the entries pointer.
+Same problem: the new entries pointer is a heap address, its lower
+4 B are large.
+
+**What I should have tried (and ran out of time for):**
+
+1. **Two-order misalignment on the fx pointer itself.** Add a second
+   order (order 2) and use the misalignment trick on IT to make its fx
+   pointer point to its own entries. The upper 4 B of a heap address
+   are small, so the constrained field is satisfiable. Then dispatch
+   order 2, whose entries contain `win` from order 1.
+
+2. **The `hint` pointer itself.** `hint` is set to `path_data`. The
+   `receipt` command prints it as `%p`. If the hint pointer were used
+   as a function pointer somewhere, we'd be done — but it isn't.
+
+3. **Check if `coupon` or `receipt` have their own call sites.** I
+   grepped for `call *` and there are none outside the dispatch loop
+   in `main`. The only other call targets are `puts`, `printf`,
+   `fgets`, etc. So no extra function-pointer call sites to hijack.
+
+4. **The `fx_draw_basic` / `fx_finish_dummy` functions themselves.**
+   Maybe there's a stack pivot or a useful gadget in those 16 bytes
+   that I missed. I never disassembled them — they were listed as
+   `<fx_draw_basic>` and `<fx_finish_dummy>` at `0x2260` / `0x2270`
+   but I didn't read their bodies.
+
+5. **The `replay` loop's reads from `0x10(%rbx)` / `0x14(%rbx)`.**
+   If those values could be turned into a call (e.g. via a crafted
+   EJS template or a format string), that's another angle. But
+   they're just `printf("%d %d -> ", ...)` — no function-pointer
+   indirection.
+
+6. **Race a `dispatch` against a `reroute`.** Dispatch reads `fx`
+   once at the start, but iterates through entries multiple times.
+   A second thread/process could swap `fx` mid-loop. But the service
+   is single-threaded and there's no way to interleave commands.
+
+---
+
+## 6. What I learned (the real lessons)
+
+1. **Reverse a "useless" function first.** `win` had a great banner
+   (`*** 30 minutes or FLAG free! ***`) and was right next to the
+   `flag.txt` string. I found it early, but I spent too long trying
+   to find a code path that calls it. In hindsight I should have
+   **immediately** started looking for function-pointer call sites
+   that could be redirected to it, not trying to brute ASLR.
+
+2. **Self-referential structs are a gift.** The fact that
+   `path_data[0x08] = &path_data[0x18]` and
+   `path_data[0x10] = &path_data[0x420]` means the "fx pointer" and
+   "entries pointer" are both in the same 0x440-byte heap chunk. That
+   gives you OOB writes into the chunk header for free, and a single
+   `reroute` can pivot to any other part of the same chunk. I
+   correctly identified this, but I didn't push the analysis far
+   enough: **the entries array itself is 0x408 bytes**, which is
+   `0x81` (129) entries. After the entries, the fx struct is
+   0x20 bytes. After that, the **chunk ends at 0x440**. So the only
+   thing the reroute can reach by index is the same chunk (or the
+   next one). No other chunks nearby have useful contents.
+
+3. **The misalignment trick I sketched IS the intended path, but I
+   stopped one step short.** The right approach is:
+   - **Order 1** (the "trampoline"): add with `(x,y) = (5,5)`.
+     `x + y*G = 85`. Use the **upper-4-B trick**: `x + y*G` will
+     appear as the *upper* half of an 8-B read at the right offset.
+   - Set `entries[0].cost = entries[1].cost = win_low` and let
+     `entries[1].flat_idx = entries[2].flat_idx = 85` (from `(5,5)`).
+   - Now if we can get `fx = path_data + 0x0C`, the reads at `+0x1C`
+     and `+0x24` give us `win` twice.
+   - For the fx pointer itself, we need a **second** order whose
+     `(x2, y2)` is chosen so that `x2 + y2*G = upper_4_B_of_heap_addr`
+     (a small number). With the same misalignment applied to that
+     order, the fx pointer write becomes satisfiable.
+   - I had all the pieces; I just didn't wire up the second order.
+
+4. **Brute-forcing ASLR is almost never the answer.** When a 32-B
+   value is constrained and the address space is 4 GB, the success
+   rate per attempt is `< 0.001%`. Always look for a way to make
+   the constrained field a **small** value (e.g. a high half-word,
+   a tag byte, a size field, an index that wraps).
+
+5. **The `add_order` OOB map read is the real primitive.** The
+   `cmpb $0x23` check lets you probe `~170 KB` past the map start
+   without segfaulting. That's enough to make `x + y*G` any value
+   in `[0, ~170000]`. Combined with the misalignment trick, this is
+   enough to defeat ASLR for the **upper** 4 bytes of any heap/PIE
+   address (which are always small). I should have used this to
+   chain **two** `reroute`s — one for the entries, one for the fx
+   pointer — each on a separate order with a carefully chosen `(x,y)`.
+
+6. **Time-box the disassembly.** I spent ~45 minutes reading the
+   whole `main` function end-to-end. For a CTF with `alarm(180)`,
+   you should usually read just enough to identify the sinks and
+   the sources, then start writing the exploit. The `reroute` /
+   `dispatch` / `win` triple was the whole game — I didn't need
+   the full Dijkstra implementation.
+
+---
+
+## 7. Files in this folder (cumulative)
+
+- `heapedit`, `heapedit.c`, `libc.so.6`, `Makefile.share` — Teacash bundle.
+- `exploit.py` — Teacash exploit (works).
+- `hash-only/` — hash-only-1 artifacts.
+- `BinaryExplotitionCTF.MD` — this writeup.
+- `../pizza-router/` — pizza-router artifacts (binary, maps, recon
+  scripts, partial exploit). Kept for reference, not committed to
+  the repo.
