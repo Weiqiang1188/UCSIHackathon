@@ -26,6 +26,9 @@ cookies.txt
 ctf-work/cookies.txt
 ctf-work/passwords.txt
 passwords.txt
+# Local test flag files (always re-created by hand for local replays)
+flag.txt
+ctf-work/**/flag.txt
 
 # Editor
 .vscode/
