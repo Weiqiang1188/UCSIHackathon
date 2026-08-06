@@ -16,8 +16,8 @@
 ## ⚡ 1. Primary Directives & Speed Rules
 
 1. **ZERO Pre-Flight Reading**:
-   - Do NOT view `INDEX.md`, `MASTER_CONTROLLER.md`, or other `.md` files before running your first command.
-   - Fire your first target probe command immediately in turn 1.
+   - Do NOT view `INDEX.md`, `MASTER_CONTROLLER.md`, or external `.md` files before probing.
+   - **Probe the Problem First**: Run a single fast recon command in Turn 1 (e.g. `strings`, `objdump`, `curl`, inspect source/binary) to diagnose the exact problem before firing the exploit script.
 
 2. **Immediate Flag Output Format**:
    - No explanations, no intros, no writeups during the run.
