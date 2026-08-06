@@ -33,3 +33,4 @@
 - Avoid blind brute-forcing without wordlists under 100 lines.
 - Avoid multi-stage XSS exfiltration if direct DOM extraction works.
 - Avoid single-threaded curl requests on routing problems — always use `xargs -P 20` or `ffuf`.
+- **Decoy / Fake Flag Filtering**: Watch out for fake flags or troll responses (`fake_flag`, `decoy_egg`, `v1/v2` traps). Verify the payload path specifically targets Version 3 (V3) assets or official flag format wrappers (`UCSI{...}`).
