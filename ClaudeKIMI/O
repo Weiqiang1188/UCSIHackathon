@@ -1,0 +1,19 @@
+
+
+
+# 1. Install Claude Code globally
+npm install -g @anthropic-ai/claude-code
+
+# 2. Fix PATH configuration
+export PATH="/Users/your_computer/.npm-global/bin:$PATH"
+echo 'export PATH="/Users/your_computer/.npm-global/bin:$PATH"' >> ~/.zshrc
+
+# 3. Configure API access
+export ANTHROPIC_AUTH_TOKEN="sk-RNVgHcIvFy4UmRet4j7gSGs5lTB9XmwBqEscC9ydHJ00tGsu"
+export ANTHROPIC_BASE_URL="https://api.moonshot.ai/anthropic"
+
+# 4. Bypass region restrictions
+node -e "const fs=require('fs'),os=require('os'),path=require('path'); const file=path.join(os.homedir(),'.claude.json'); fs.writeFileSync(file,JSON.stringify({hasCompletedOnboarding:true},null,2));"
+
+# 5. Launch Claude Code
+claude

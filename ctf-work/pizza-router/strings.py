@@ -1,0 +1,12 @@
+#!/usr/bin/env python3
+"""Read strings from the router binary at specific offsets."""
+import struct
+with open('router', 'rb') as f:
+    data = f.read()
+for addr in [0x306b, 0x306e, 0x3073, 0x3078, 0x307c, 0x3081, 0x308b, 0x3093, 0x309b, 0x30a2, 0x30ad, 0x30eb, 0x30f2, 0x310c, 0x312d, 0x3143, 0x314d, 0x3158, 0x31b0]:
+    off = addr
+    s = b''
+    while off < len(data) and data[off] != 0:
+        s += bytes([data[off]])
+        off += 1
+    print(f'  0x{addr:x}: {s.decode(errors="replace")}')

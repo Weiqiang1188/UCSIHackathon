@@ -1,0 +1,38 @@
+
+
+
+# 1. Install Claude Code globally
+npm install -g @anthropic-ai/claude-code
+
+# 2. Fix PATH configuration (PowerShell)
+# Check where npm installed Claude Code
+# npm list -g @anthropic-ai/claude-code
+# Result: C:\Users\weiqi\AppData\Roaming\npm
+
+# Add npm global bin to PATH (temporary fix for current session)
+$env:PATH = "C:\Users\weiqi\AppData\Roaming\npm;$env:PATH"
+
+# Permanent fix - add to PowerShell profile
+if (!(Test-Path $PROFILE)) { New-Item -Path $PROFILE -Type File -Force }
+$profileLine = '$env:PATH = "C:\Users\weiqi\AppData\Roaming\npm;$env:PATH"'
+if ((Get-Content $PROFILE -ErrorAction SilentlyContinue) -notcontains $profileLine) {
+    Add-Content -Path $PROFILE -Value $profileLine
+}
+# Reload profile (or restart terminal)
+. $PROFILE
+
+# Verify it works
+# claude --version
+
+# 3. Configure API access (PowerShell)
+$env:ANTHROPIC_AUTH_TOKEN = "sk-KrTZIiWjc82pPFYNRIsg1kLMibCDnOtbU7ZA4etqYb9xV76k"
+$env:ANTHROPIC_BASE_URL = "https://api.moonshot.ai/anthropic"
+set ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic    
+set ANTHROPIC_AUTH_TOKEN=sk-KrTZIiWjc82pPFYNRIsg1kLMibCDnOtbU7ZA4etqYb9xV76k
+
+# 4. Bypass region restrictions
+node -e "const fs=require('fs'),os=require('os'),path=require('path'); const file=path.join(os.homedir(),'.claude.json'); fs.writeFileSync(file,JSON.stringify({hasCompletedOnboarding:true},null,2));"
+
+# 5. Launch Claude Code
+claude
+

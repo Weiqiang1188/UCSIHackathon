@@ -1,0 +1,90 @@
+{
+  "runId": "8b53718f",
+  "agent": "vigoliumpiolium.piolium",
+  "task": "find all vulnerability related to github",
+  "exitCode": 0,
+  "usage": {
+    "input": 8369,
+    "output": 952,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "cost": 0,
+    "turns": 3
+  },
+  "model": "openrouter/openrouter/free",
+  "attemptedModels": [
+    "openrouter/openrouter/free"
+  ],
+  "modelAttempts": [
+    {
+      "model": "openrouter/openrouter/free",
+      "success": false,
+      "exitCode": -2,
+      "usage": {
+        "input": 2450,
+        "output": 684,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "cost": 0,
+        "turns": 1
+      }
+    }
+  ],
+  "durationMs": 52612,
+  "toolCount": 2,
+  "launchContractDigest": "5f443ef4d1e9c26b95351108a59e7b7cbef6d77ad89d37f8384a35c559d665d9",
+  "acceptance": {
+    "status": "rejected",
+    "evidenceStatus": "rejected",
+    "explicit": false,
+    "effectiveAcceptance": {
+      "level": "attested",
+      "explicit": false,
+      "inferredReason": [
+        "default lightweight attestation"
+      ],
+      "criteria": [
+        {
+          "id": "criterion-1",
+          "must": "Return a concise result and residual risks when applicable",
+          "evidence": [
+            "manual-notes",
+            "residual-risks"
+          ],
+          "severity": "required"
+        }
+      ],
+      "evidence": [
+        "manual-notes",
+        "residual-risks"
+      ],
+      "verify": [],
+      "stopRules": []
+    },
+    "inferredReason": [
+      "default lightweight attestation"
+    ],
+    "criteria": [
+      {
+        "id": "criterion-1",
+        "must": "Return a concise result and residual risks when applicable",
+        "evidence": [
+          "manual-notes",
+          "residual-risks"
+        ],
+        "severity": "required"
+      }
+    ],
+    "runtimeChecks": [
+      {
+        "id": "attestation",
+        "status": "failed",
+        "message": "Structured acceptance report not found."
+      }
+    ],
+    "verifyRuns": [],
+    "childReportParseError": "Structured acceptance report not found."
+  },
+  "transcriptPath": "C:\\Users\\weiqi\\OneDrive\\Desktop\\Sem2 Degree\\Hackathon\\.pi-subagents\\artifacts\\8b53718f_vigoliumpiolium.piolium_0_transcript.jsonl",
+  "timestamp": 1785332263810
+}

@@ -1,0 +1,13 @@
+auto_submit:
+  challenge_id: ''
+  enabled: false
+  token: ''
+  url: ''
+context_bytes: 40
+flag_rules:
+- prefix: flag
+- prefix: picoCTF
+- prefix: CTF
+- prefix: NSSCTF
+max_file_size_mb: 1000
+scan_cooldown: 1
