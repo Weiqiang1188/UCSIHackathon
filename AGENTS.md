@@ -6,7 +6,7 @@
 
 ## 🛑 EMERGENCY HARD-STOP RULE (ZERO DELAY)
 
-**IF ANY COMMAND OR SCRIPT OUTPUT CONTAINS `flag{` OR `picoCTF{`:**
+**IF ANY COMMAND OR SCRIPT OUTPUT CONTAINS `flag{`, `picoCTF{`, or `UCSI{`:**
 1. **STOP ALL TOOL CALLS IMMEDIATELY.**
 2. **DO NOT WRITE FILES, DO NOT EDIT PLAYBOOKS, DO NOT RUN POST-PROCESSING.**
 3. **OUTPUT THE FLAG IMMEDIATELY IN THE FINAL RESPONSE.**
@@ -46,7 +46,7 @@
 
 ### Cryptography (Encoding / Ciphers)
 - **Nested Base64 + ROT (interencdec)**: `python3 -c "import base64; d=base64.b64decode('<payload>').decode().strip(\"b''\n\"); print(base64.b64decode(d))"` then apply ROT/Caesar shift.
-- **CyberChef / Quick Solve**: Double-b64 decode -> Caesar shift search (`picoCTF` or `flag{`).
+- **CyberChef / Quick Solve**: Double-b64 decode -> Caesar shift search (`picoCTF`, `UCSI{`, or `flag{`).
 
 ---
 
